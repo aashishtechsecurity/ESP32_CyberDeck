@@ -16,7 +16,6 @@ enum JoyDirection {
 extern int joyCenterX;
 extern int joyCenterY;
 extern unsigned long lastActivityTime;
-extern volatile bool buttonClickedFlag;
 
 // Hardware Driver APIs
 void setupHardware();

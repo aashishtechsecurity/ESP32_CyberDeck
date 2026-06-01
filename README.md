@@ -1,56 +1,91 @@
 # Aashish OS - ESP32 CyberDeck Mini
 
-Aashish OS is a high-performance, multi-page handheld operating system designed for the ESP32 paired with a 1.3-inch SH1106 OLED screen, a 5-axis analog joystick, and an RGB status LED.
+Aashish OS is a multi-page handheld UI system for ESP32 with a 1.3-inch SH1106 OLED, 5-axis analog joystick, and RGB status LED.
 
 ---
 
-## 🛠️ Hardware Setup & Pinout
+## Hardware Setup and Pinout
 
 | ESP32 Pin | Connected To          | Description |
 | --------- | --------------------- | ----------- |
-| **GPIO2**  | RGB Red               | Status indicator Red pin |
-| **GPIO4**  | RGB Blue              | Status indicator Blue pin |
-| **GPIO15** | RGB Green             | Status indicator Green pin |
-| **GPIO21** | OLED SDA              | Hardware I2C Data line |
-| **GPIO22** | OLED SCL              | Hardware I2C Clock line |
-| **GPIO25** | Joystick Button       | Central push click (PULLUP) |
-| **GPIO34** | Joystick X-Axis       | Horizontal movement analog pin |
-| **GPIO35** | Joystick Y-Axis       | Vertical movement analog pin |
-| **3.3V**   | OLED + Joystick VCC   | Power supply line |
-| **GND**    | OLED + RGB + Joystick | Shared Ground line |
+| **GPIO2**  | RGB Red               | Status indicator red pin |
+| **GPIO4**  | RGB Blue              | Status indicator blue pin |
+| **GPIO15** | RGB Green             | Status indicator green pin |
+| **GPIO21** | OLED SDA              | I2C data |
+| **GPIO22** | OLED SCL              | I2C clock |
+| **GPIO25** | Joystick Button       | Center click (`INPUT_PULLUP`) |
+| **GPIO34** | Joystick X-Axis       | Horizontal analog |
+| **GPIO35** | Joystick Y-Axis       | Vertical analog |
+| **3.3V**   | OLED + Joystick VCC   | Power |
+| **GND**    | OLED + RGB + Joystick | Common ground |
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-* **Cyberpunk Glitch Boot sequence**: Start up with dynamic Matrix rain, a hexadecimal sector decrypting log, sci-fi crosshair frames, binary character decrypting animations, and synced RGB transitions.
-* **Cover-Page Launcher Carousel**: Navigate between 8 different apps using Joystick Left/Right. Launch applications with a center Click.
-* **FreeRTOS Async Network Scanners**: Offload WiFi and BLE scans to ESP32 Core 0, keeping the UI rendering thread responsive with active loading indicators.
-* **Physics-based Idle Screensaver**: Enter a screensaver showing interactive Bike Riding and Girl & Flower animations after 5 seconds of inactivity. Wake up instantly upon joystick movement.
-* **Low Power Sleep**: Autonomously enter ESP32 **Light Sleep** after 5 minutes of idle screensavers. Wake up by clicking the joystick center button.
-* **Dynamic Auto-Calibration**: Sample joystick offsets at startup to eliminate hardware center drift.
-
----
-
-## 📂 Project Architecture
-
-* `ESP32_CyberDeck.ino`: Setup configurations, thread offloading wrappers, sleep state rules, and horizontal layout swappers.
-* `config.h`: Central pins and analog calibration variables.
-* `hardware.h`: Calibration filters, debounce engines, and RGB LED PWM controllers.
-* `matrix_boot.h`: Dynamic boot loader animations and diagnostic panels.
-* `scanner.h`: Background FreeRTOS scanner tasks and UI listing pages.
-* `dashboard.h`: Cyber monitor UI with graphs and scroll diagnostics log.
-* `games.h`: Responsive Snake game with a dynamic key buffering system.
-* `rgb_ctrl.h`: Strobe, rainbow cycle, and breathing modes controller.
-* `animations.h`: Custom physics engine rendering rotating wheel spokes, exhaust smoke, sways, and fluttering particles.
+- Cyberpunk-style animated boot sequence
+- App launcher carousel with joystick navigation
+- FreeRTOS Wi-Fi and BLE scanning tasks
+- Idle animations/screensaver with quick wake
+- Light sleep after long inactivity
+- Startup joystick center auto-calibration
 
 ---
 
-## 💾 Library Installation & Upload
+## Project Structure
+
+- `ESP32_CyberDeck.ino`: Main app state machine and render loop
+- `config.h`: Pin mapping and UI constants
+- `hardware.*`: Joystick, button interrupt, RGB hardware I/O
+- `matrix_boot.*`: Boot animation/rendering
+- `scanner.*`: Wi-Fi/BLE scanning + list UI
+- `dashboard.*`: System monitor UI
+- `games.*`: Snake + Flappy game logic/rendering
+- `rgb_ctrl.*`: RGB effect modes
+- `animations.*`: Screensaver scene animations
+
+---
+
+## Build and Upload (Arduino IDE)
 
 1. Open **Arduino IDE**.
-2. Go to **Sketch** -> **Include Library** -> **Manage Libraries...** and search for and install:
-   * **Adafruit GFX Library**
-   * **Adafruit SH110X**
-3. Select **ESP32 Dev Module** under **Tools** -> **Board**.
-4. Connect your ESP32, select its COM Port under **Tools** -> **Port**, and hit **Upload**!
+2. Install board support:
+   - **Tools -> Board -> Boards Manager...**
+   - Install **ESP32 by Espressif Systems**.
+3. Install libraries from **Library Manager**:
+   - **Adafruit GFX Library**
+   - **Adafruit SH110X**
+4. Select board:
+   - **Tools -> Board -> ESP32 Dev Module**
+5. Select COM port and click **Upload**.
+
+---
+
+## Build and Upload (Arduino CLI)
+
+Example commands:
+
+```bash
+arduino-cli core update-index
+arduino-cli core install esp32:esp32
+arduino-cli lib install "Adafruit GFX Library"
+arduino-cli lib install "Adafruit SH110X"
+arduino-cli compile --fqbn esp32:esp32:esp32 ESP32_CyberDeck.ino
+arduino-cli upload -p <COM_PORT> --fqbn esp32:esp32:esp32 ESP32_CyberDeck.ino
+```
+
+Replace `<COM_PORT>` with your device port, for example `COM5`.
+
+---
+
+## Build and Upload (PlatformIO)
+
+`platformio.ini` is included for reproducible builds.
+
+```bash
+pio run
+pio run -t upload --upload-port <COM_PORT>
+pio device monitor -b 115200
+```
+
+Replace `<COM_PORT>` with your device port, for example `COM5`.

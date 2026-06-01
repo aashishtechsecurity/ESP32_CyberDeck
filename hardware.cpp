@@ -1,41 +1,61 @@
 #include "hardware.h"
 #include "config.h"
 
+#if __has_include(<esp_arduino_version.h>)
+#include <esp_arduino_version.h>
+#endif
+
+constexpr uint8_t RGB_RED_CH = 0;   // used by ESP32 core 2.x API
+constexpr uint8_t RGB_GREEN_CH = 1; // used by ESP32 core 2.x API
+constexpr uint8_t RGB_BLUE_CH = 2;  // used by ESP32 core 2.x API
+constexpr uint32_t RGB_PWM_FREQ = 5000;
+constexpr uint8_t RGB_PWM_RES_BITS = 8;
+
 // Define global variables
 int joyCenterX = 1850;
 int joyCenterY = 1850;
 unsigned long lastActivityTime = 0;
-volatile bool buttonClickedFlag = false;
+volatile bool buttonInterruptFlag = false;
 
-// Local debouncing tracking inside ISR
-volatile unsigned long lastButtonInterruptTime = 0;
 const unsigned long INTERRUPT_DEBOUNCE_DELAY = 180; // ms
+unsigned long lastButtonHandledTime = 0;
 
 // Track if joystick axis has returned to center before registering another movement
 bool axisReleased = true;
 
 // Interrupt Service Routine (ISR) for the Joystick Button Click
 void IRAM_ATTR buttonISR() {
-  unsigned long currentTime = millis();
-  if (currentTime - lastButtonInterruptTime > INTERRUPT_DEBOUNCE_DELAY) {
-    lastButtonInterruptTime = currentTime;
-    buttonClickedFlag = true;
-  }
+  buttonInterruptFlag = true;
 }
 
 void setupHardware() {
-  pinMode(PIN_RGB_RED, OUTPUT);
-  pinMode(PIN_RGB_GREEN, OUTPUT);
-  pinMode(PIN_RGB_BLUE, OUTPUT);
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  ledcAttach(PIN_RGB_RED, RGB_PWM_FREQ, RGB_PWM_RES_BITS);
+  ledcAttach(PIN_RGB_GREEN, RGB_PWM_FREQ, RGB_PWM_RES_BITS);
+  ledcAttach(PIN_RGB_BLUE, RGB_PWM_FREQ, RGB_PWM_RES_BITS);
+#else
+  ledcSetup(RGB_RED_CH, RGB_PWM_FREQ, RGB_PWM_RES_BITS);
+  ledcSetup(RGB_GREEN_CH, RGB_PWM_FREQ, RGB_PWM_RES_BITS);
+  ledcSetup(RGB_BLUE_CH, RGB_PWM_FREQ, RGB_PWM_RES_BITS);
+  ledcAttachPin(PIN_RGB_RED, RGB_RED_CH);
+  ledcAttachPin(PIN_RGB_GREEN, RGB_GREEN_CH);
+  ledcAttachPin(PIN_RGB_BLUE, RGB_BLUE_CH);
+#endif
   
   pinMode(PIN_JOY_BTN, INPUT_PULLUP);
   pinMode(PIN_JOY_X, INPUT);
   pinMode(PIN_JOY_Y, INPUT);
   
   // Turn off RGB initially
-  digitalWrite(PIN_RGB_RED, LOW);
-  digitalWrite(PIN_RGB_GREEN, LOW);
-  digitalWrite(PIN_RGB_BLUE, LOW);
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  ledcWrite(PIN_RGB_RED, 0);
+  ledcWrite(PIN_RGB_GREEN, 0);
+  ledcWrite(PIN_RGB_BLUE, 0);
+#else
+  ledcWrite(RGB_RED_CH, 0);
+  ledcWrite(RGB_GREEN_CH, 0);
+  ledcWrite(RGB_BLUE_CH, 0);
+#endif
 
   // Attach Hardware Interrupt for button clicking (GPIO25, Active LOW)
   attachInterrupt(digitalPinToInterrupt(PIN_JOY_BTN), buttonISR, FALLING);
@@ -59,17 +79,28 @@ void calibrateJoystick() {
 }
 
 void setRGBColor(uint8_t r, uint8_t g, uint8_t b) {
-  analogWrite(PIN_RGB_RED, r);
-  analogWrite(PIN_RGB_GREEN, g);
-  analogWrite(PIN_RGB_BLUE, b);
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  ledcWrite(PIN_RGB_RED, r);
+  ledcWrite(PIN_RGB_GREEN, g);
+  ledcWrite(PIN_RGB_BLUE, b);
+#else
+  ledcWrite(RGB_RED_CH, r);
+  ledcWrite(RGB_GREEN_CH, g);
+  ledcWrite(RGB_BLUE_CH, b);
+#endif
 }
 
 JoyDirection readJoystick() {
   // Check if interrupt flag was tripped
-  if (buttonClickedFlag) {
-    buttonClickedFlag = false; // Reset flag
-    lastActivityTime = millis();
-    return JOY_CLICK;
+  if (buttonInterruptFlag) {
+    unsigned long now = millis();
+    if (now - lastButtonHandledTime > INTERRUPT_DEBOUNCE_DELAY) {
+      lastButtonHandledTime = now;
+      buttonInterruptFlag = false; // Reset flag after accepting click
+      lastActivityTime = now;
+      return JOY_CLICK;
+    }
+    buttonInterruptFlag = false; // Ignore bounces
   }
 
   // Read analog values

@@ -1,0 +1,28 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arduino IDE temporary/build files
+*.ino.cpp
+*.ino.bin
+*.elf
+*.map
+*.hex
+*.eep
+*.lst
+*.o
+*.d
+*.a
+
+# Common Arduino/ESP32 build output folders
+build/
+Build/
+dist/
+
+# Arduino CLI output
+sketch/
+

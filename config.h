@@ -2,31 +2,31 @@
 #define CONFIG_H
 
 // --- Hardware Pins ---
-#define PIN_RGB_RED    2
-#define PIN_RGB_BLUE   4
-#define PIN_RGB_GREEN  15
+constexpr int PIN_RGB_RED = 2;
+constexpr int PIN_RGB_BLUE = 4;
+constexpr int PIN_RGB_GREEN = 15;
 
-#define PIN_OLED_SDA   21
-#define PIN_OLED_SCL   22
+constexpr int PIN_OLED_SDA = 21;
+constexpr int PIN_OLED_SCL = 22;
 
-#define PIN_JOY_BTN    25
-#define PIN_JOY_X      34
-#define PIN_JOY_Y      35
+constexpr int PIN_JOY_BTN = 25;
+constexpr int PIN_JOY_X = 34;
+constexpr int PIN_JOY_Y = 35;
 
 // --- OLED Screen Settings ---
-#define SCREEN_WIDTH   128
-#define SCREEN_HEIGHT  64
-#define OLED_ADDRESS   0x3C
+constexpr int SCREEN_WIDTH = 128;
+constexpr int SCREEN_HEIGHT = 64;
+constexpr uint8_t OLED_ADDRESS = 0x3C;
 
 // --- Display Geometry Layout Constants ---
-#define UI_PADDING_X   4
-#define UI_PADDING_Y   2
-#define FONT_WIDTH     6
-#define FONT_HEIGHT    8
+constexpr int UI_PADDING_X = 4;
+constexpr int UI_PADDING_Y = 2;
+constexpr int FONT_WIDTH = 6;
+constexpr int FONT_HEIGHT = 8;
 
 // --- Joystick Calibration (Auto-calibrated at boot) ---
 extern int joyCenterX;
 extern int joyCenterY;
-#define JOY_THRESHOLD  800  // Sensitivity threshold for directional movements
+constexpr int JOY_THRESHOLD = 800; // Sensitivity threshold for directional movements
 
 #endif // CONFIG_H

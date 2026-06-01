@@ -30,6 +30,7 @@ extern volatile bool bleScanRunning;
 // Scanner API Declarations
 void triggerWifiScan();
 void triggerBleScan();
+void pollScannerTimeouts();
 void renderWifiList(Adafruit_SH1106G &display, int selectedIdx);
 void renderBleList(Adafruit_SH1106G &display, int selectedIdx);
 

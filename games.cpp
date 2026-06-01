@@ -21,6 +21,33 @@ const int GRID_SIZE = 4;
 const int GRID_WIDTH = SCREEN_WIDTH / GRID_SIZE;
 const int GRID_HEIGHT = SCREEN_HEIGHT / GRID_SIZE;
 
+struct LedPulse {
+  bool active;
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  unsigned long endTime;
+};
+
+LedPulse gameLedPulse = {false, 0, 0, 0, 0};
+
+void startLedPulse(uint8_t r, uint8_t g, uint8_t b, unsigned long durationMs) {
+  gameLedPulse.active = true;
+  gameLedPulse.r = r;
+  gameLedPulse.g = g;
+  gameLedPulse.b = b;
+  gameLedPulse.endTime = millis() + durationMs;
+  setRGBColor(r, g, b);
+}
+
+void tickLedPulse() {
+  if (!gameLedPulse.active) return;
+  if ((long)(millis() - gameLedPulse.endTime) >= 0) {
+    gameLedPulse.active = false;
+    setRGBColor(0, 0, 0);
+  }
+}
+
 void spawnFood() {
   foodX = random(1, GRID_WIDTH - 2);
   foodY = random(3, GRID_HEIGHT - 2);
@@ -35,10 +62,13 @@ void initSnakeGame() {
   dirY = 0;
   score = 0;
   gameOver = false;
+  gameLedPulse.active = false;
+  setRGBColor(0, 0, 0);
   spawnFood();
 }
 
 void updateSnake(JoyDirection input) {
+  tickLedPulse();
   if (gameOver) return;
 
   if (input == JOY_UP && dirY == 0) {
@@ -60,18 +90,14 @@ void updateSnake(JoyDirection input) {
 
   if (nextX < 0 || nextX >= GRID_WIDTH || nextY < 2 || nextY >= GRID_HEIGHT) {
     gameOver = true;
-    setRGBColor(255, 0, 0);
-    delay(400);
-    setRGBColor(0, 0, 0);
+    startLedPulse(255, 0, 0, 400);
     return;
   }
 
   for (int i = 0; i < snakeLen; i++) {
     if (snake[i].x == nextX && snake[i].y == nextY) {
       gameOver = true;
-      setRGBColor(255, 0, 0);
-      delay(400);
-      setRGBColor(0, 0, 0);
+      startLedPulse(255, 0, 0, 400);
       return;
     }
   }
@@ -88,10 +114,8 @@ void updateSnake(JoyDirection input) {
       snakeLen++;
     }
     
-    setRGBColor(0, 255, 0);
+    startLedPulse(0, 255, 0, 40);
     spawnFood();
-    delay(40);
-    setRGBColor(0, 0, 0);
   }
 }
 
@@ -137,6 +161,8 @@ const int PILLAR_GAP_HEIGHT = 20;
 const int PILLAR_WIDTH = 8;
 const int BIRD_X = 35;
 
+bool pillarPassed = false;
+
 void initFlappyGame() {
   birdY = 32.0;
   birdVelocity = 0.0;
@@ -144,9 +170,13 @@ void initFlappyGame() {
   pillarGapY = random(14, 34);
   flappyScore = 0;
   flappyGameOver = false;
+  pillarPassed = false;
+  gameLedPulse.active = false;
+  setRGBColor(0, 0, 0);
 }
 
 void updateFlappyGame(JoyDirection input) {
+  tickLedPulse();
   if (flappyGameOver) return;
 
   // Flap on button press or joystick up
@@ -160,23 +190,26 @@ void updateFlappyGame(JoyDirection input) {
 
   // Move obstacle pillar
   pillarX -= 2.2;
+  
+  // Dynamic immediate score update when the bird passes the front edge of the pillar
+  if (pillarX + PILLAR_WIDTH < BIRD_X && !pillarPassed) {
+    flappyScore++;
+    pillarPassed = true;
+    
+    // Quick flash green on score
+    startLedPulse(0, 255, 0, 40);
+  }
+
   if (pillarX < -PILLAR_WIDTH) {
     pillarX = 128.0;
     pillarGapY = random(14, 34);
-    flappyScore++;
-    
-    // Flash green on score
-    setRGBColor(0, 255, 0);
-    delay(40);
-    setRGBColor(0, 0, 0);
+    pillarPassed = false; // Reset pass flag for the new pillar
   }
 
   // Border collision checks
   if (birdY >= 61.0 || birdY <= 11.0) {
     flappyGameOver = true;
-    setRGBColor(255, 0, 0); // Flash RED
-    delay(400);
-    setRGBColor(0, 0, 0);
+    startLedPulse(255, 0, 0, 400); // Flash RED
     return;
   }
 
@@ -186,9 +219,7 @@ void updateFlappyGame(JoyDirection input) {
     // Check if bird is outside the gap safety window
     if (birdY - 3 < pillarGapY || birdY + 3 > pillarGapY + PILLAR_GAP_HEIGHT) {
       flappyGameOver = true;
-      setRGBColor(255, 0, 0);
-      delay(400);
-      setRGBColor(0, 0, 0);
+      startLedPulse(255, 0, 0, 400);
       return;
     }
   }

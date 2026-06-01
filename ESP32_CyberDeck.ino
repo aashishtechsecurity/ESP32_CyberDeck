@@ -267,6 +267,7 @@ void renderScreensaver(JoyDirection input) {
 void loop() {
   // Feed/Reset the hardware Task Watchdog Timer
   esp_task_wdt_reset();
+  pollScannerTimeouts();
 
   JoyDirection input = readJoystick();
   static JoyDirection bufferedJoyInput = JOY_NONE;
