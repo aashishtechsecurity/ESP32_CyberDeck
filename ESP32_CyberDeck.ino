@@ -21,6 +21,7 @@ enum OSState {
   STATE_WIFI_SCAN,
   STATE_BLE_SCAN,
   STATE_GAME,
+  STATE_FLAPPY,
   STATE_DASHBOARD,
   STATE_RGB_CTRL,
   STATE_SYS_INFO,
@@ -122,6 +123,15 @@ void drawAppIcon(OSState state) {
     case STATE_GAME:
       display.fillRect(52, 28, 24, 8, SH110X_WHITE);
       display.fillRect(60, 20, 8, 24, SH110X_WHITE);
+      break;
+      
+    case STATE_FLAPPY:
+      // Render cute little bird profile for launcher
+      display.drawCircle(62, 30, 6, SH110X_WHITE);
+      display.drawCircle(58, 30, 3, SH110X_WHITE); // Wing
+      display.drawPixel(64, 28, SH110X_WHITE);    // Eye
+      display.drawLine(68, 30, 72, 32, SH110X_WHITE); // Beak
+      display.drawLine(68, 32, 72, 32, SH110X_WHITE);
       break;
       
     case STATE_DASHBOARD:
@@ -354,11 +364,16 @@ void loop() {
       if (currentState == STATE_WIFI_SCAN) triggerWifiScan();
       if (currentState == STATE_BLE_SCAN) triggerBleScan();
       if (currentState == STATE_GAME) initSnakeGame();
+      if (currentState == STATE_FLAPPY) initFlappyGame();
       if (currentState == STATE_DASHBOARD) initDashboard();
     }
   } else {
     if (currentState == STATE_GAME) {
       if (gameOver && input == JOY_LEFT) {
+        appActive = false;
+      }
+    } else if (currentState == STATE_FLAPPY) {
+      if (flappyGameOver && input == JOY_LEFT) {
         appActive = false;
       }
     } else {
@@ -380,20 +395,23 @@ void loop() {
       case STATE_GAME:
         drawAppLobby("3. SNAKE GAME", STATE_GAME);
         break;
+      case STATE_FLAPPY:
+        drawAppLobby("4. FLAPPY BIRD", STATE_FLAPPY);
+        break;
       case STATE_DASHBOARD:
-        drawAppLobby("4. MONITOR DASH", STATE_DASHBOARD);
+        drawAppLobby("5. MONITOR DASH", STATE_DASHBOARD);
         break;
       case STATE_RGB_CTRL:
-        drawAppLobby("5. RGB CONTROLLER", STATE_RGB_CTRL);
+        drawAppLobby("6. RGB CONTROLLER", STATE_RGB_CTRL);
         break;
       case STATE_SYS_INFO:
-        drawAppLobby("6. SYSTEM STATUS", STATE_SYS_INFO);
+        drawAppLobby("7. SYSTEM STATUS", STATE_SYS_INFO);
         break;
       case STATE_ANIMATIONS:
-        drawAppLobby("7. SCREENSAVERS", STATE_ANIMATIONS);
+        drawAppLobby("8. SCREENSAVERS", STATE_ANIMATIONS);
         break;
       case STATE_ABOUT:
-        drawAppLobby("8. ABOUT SYSTEM", STATE_ABOUT);
+        drawAppLobby("9. ABOUT SYSTEM", STATE_ABOUT);
         break;
       default:
         break;
@@ -442,6 +460,19 @@ void loop() {
           bufferedJoyInput = JOY_NONE;
         }
         drawSnakeGame(display);
+        break;
+
+      case STATE_FLAPPY:
+        if (input == JOY_CLICK && flappyGameOver) {
+          initFlappyGame();
+        }
+        // Flappy updates tick at a responsive 80ms interval
+        if (millis() - lastGameTick > 80) {
+          lastGameTick = millis();
+          updateFlappyGame(bufferedJoyInput);
+          bufferedJoyInput = JOY_NONE;
+        }
+        drawFlappyGame(display);
         break;
 
       case STATE_DASHBOARD:
