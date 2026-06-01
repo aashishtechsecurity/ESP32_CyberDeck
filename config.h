@@ -18,6 +18,12 @@
 #define SCREEN_HEIGHT  64
 #define OLED_ADDRESS   0x3C
 
+// --- Display Geometry Layout Constants ---
+#define UI_PADDING_X   4
+#define UI_PADDING_Y   2
+#define FONT_WIDTH     6
+#define FONT_HEIGHT    8
+
 // --- Joystick Calibration (Auto-calibrated at boot) ---
 extern int joyCenterX;
 extern int joyCenterY;

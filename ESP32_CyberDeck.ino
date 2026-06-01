@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
+#include <esp_task_wdt.h> // ESP32 Hardware Task Watchdog
 
 #include "config.h"
 #include "hardware.h"
@@ -11,7 +12,8 @@
 #include "rgb_ctrl.h"
 #include "animations.h"
 
-Adafruit_SH1106G display(128, 64, &Wire, -1);
+// Instantiate the modern Adafruit SH1106G display
+Adafruit_SH1106G display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // System UI States
 enum OSState {
@@ -27,16 +29,15 @@ enum OSState {
   STATE_COUNT
 };
 
-OSState currentState = STATE_BOOT;
-bool appActive = false; // Tracks if we are inside the running app or on its cover card
+OSState currentState = STATE_WIFI_SCAN;
+bool appActive = false;
 
 // Idle Screensaver tracking variables
 bool isIdleScreensaver = false;
 OSState savedPreIdleState = STATE_WIFI_SCAN;
 bool savedPreIdleAppActive = false;
 unsigned long lastIdleAnimSwitch = 0;
-int idleAnimCycle = 0; // 0: Matrix, 1: Bike, 2: Girl
-int matrixCycles = 0; // counter for Matrix frames in screensaver
+int idleAnimCycle = 0;
 
 // Sub-app variables
 int subAppSelectIdx = 0;
@@ -61,16 +62,40 @@ void initStars() {
 
 void setup() {
   Serial.begin(115200);
+  
+  // Setup hardware pins
   setupHardware();
+
+  // Run dynamic calibration of joystick offsets at boot
   calibrateJoystick();
 
-  display.begin(0x3C, true);
+  // Initialize display via I2C at address 0x3C
+  if (!display.begin(OLED_ADDRESS, true)) {
+    Serial.println("CRITICAL ERROR: SH1106 display not detected on I2C!");
+    setRGBColor(255, 0, 0); // Solid RED status light on hardware crash
+    while (1); // Halt execution
+  }
+  
+  // Boost I2C bus speed to Fast Mode (400kHz) for fluid UI updates
   Wire.setClock(400000);
   
   display.clearDisplay();
   display.display();
 
+  // Run the boot sequence *before* watchdog is initialized to avoid watchdog reset loops
+  playBootSequence(display);
+
+  // Initialize Task Watchdog Timer (4 seconds limit, system panic on reset trigger)
+  esp_task_wdt_config_t wdt_config = {
+      .timeout_ms = 4000,
+      .idle_core_mask = (1 << 0) | (1 << 1), // Monitor both CPU cores
+      .trigger_panic = true
+  };
+  esp_task_wdt_init(&wdt_config);
+  esp_task_wdt_add(NULL); // Subscribe main loop task to WDT
+
   initStars();
+  triggerWifiScan(); // Trigger initial WiFi scan for first screen
 }
 
 // Draw a beautiful custom icon based on the current state/app
@@ -79,14 +104,12 @@ void drawAppIcon(OSState state) {
   
   switch(state) {
     case STATE_WIFI_SCAN:
-      // WiFi logo simulation (concentric arcs)
       display.drawCircle(64, 42, 2, SH110X_WHITE);
       display.drawCircle(64, 42, 6, SH110X_WHITE);
       display.drawCircle(64, 42, 10, SH110X_WHITE);
       break;
       
     case STATE_BLE_SCAN:
-      // Bluetooth logo simulation (B-shape lines)
       display.drawLine(64, 20, 64, 44, SH110X_WHITE);
       display.drawLine(64, 20, 72, 26, SH110X_WHITE);
       display.drawLine(72, 26, 64, 32, SH110X_WHITE);
@@ -97,13 +120,11 @@ void drawAppIcon(OSState state) {
       break;
       
     case STATE_GAME:
-      // Snake / Controller icon
       display.fillRect(52, 28, 24, 8, SH110X_WHITE);
       display.fillRect(60, 20, 8, 24, SH110X_WHITE);
       break;
       
     case STATE_DASHBOARD:
-      // PC Monitor icon
       display.drawRect(52, 20, 24, 18, SH110X_WHITE);
       display.drawLine(60, 38, 56, 44, SH110X_WHITE);
       display.drawLine(68, 38, 72, 44, SH110X_WHITE);
@@ -111,7 +132,6 @@ void drawAppIcon(OSState state) {
       break;
       
     case STATE_RGB_CTRL:
-      // Lightbulb icon
       display.drawCircle(64, 28, 8, SH110X_WHITE);
       display.fillRect(61, 36, 6, 6, SH110X_WHITE);
       display.drawLine(64, 18, 64, 16, SH110X_WHITE);
@@ -120,10 +140,8 @@ void drawAppIcon(OSState state) {
       break;
       
     case STATE_SYS_INFO:
-      // Microchip / Gear icon
       display.drawRect(54, 22, 20, 20, SH110X_WHITE);
       display.fillRect(58, 26, 12, 12, SH110X_WHITE);
-      // Chip legs
       display.drawFastHLine(50, 26, 4, SH110X_WHITE);
       display.drawFastHLine(50, 32, 4, SH110X_WHITE);
       display.drawFastHLine(50, 38, 4, SH110X_WHITE);
@@ -133,7 +151,6 @@ void drawAppIcon(OSState state) {
       break;
       
     case STATE_ANIMATIONS:
-      // Screensaver / Wave icon
       display.drawLine(50, 32, 58, 24, SH110X_WHITE);
       display.drawLine(58, 24, 66, 40, SH110X_WHITE);
       display.drawLine(66, 40, 74, 24, SH110X_WHITE);
@@ -141,7 +158,6 @@ void drawAppIcon(OSState state) {
       break;
       
     case STATE_ABOUT:
-      // Developer / Code cursor tag
       display.setCursor(54, 24);
       display.setTextSize(2);
       display.setTextColor(SH110X_WHITE);
@@ -158,7 +174,7 @@ void drawAppLobby(const char* title, OSState state) {
   display.clearDisplay();
   
   // Upper state index dots
-  int totalDots = STATE_COUNT - 1; // Exclude BOOT
+  int totalDots = STATE_COUNT - 1;
   int currentDotIdx = (int)state - 1;
   int startX = 64 - (totalDots * 6) / 2;
   for (int i = 0; i < totalDots; i++) {
@@ -172,12 +188,10 @@ void drawAppLobby(const char* title, OSState state) {
   // App Title
   display.setTextSize(1);
   display.setTextColor(SH110X_WHITE);
-  display.setCursor(64 - (strlen(title) * 6) / 2, 50);
+  display.setCursor(64 - (strlen(title) * FONT_WIDTH) / 2, 50);
   display.print(title);
   
-  // Draw Icon
   drawAppIcon(state);
-  
   display.display();
 }
 
@@ -204,7 +218,7 @@ void renderScreensaver(JoyDirection input) {
         display.fillCircle(sx, sy, r > 0 ? r : 1, SH110X_WHITE);
       }
     }
-    display.setCursor(2, 2);
+    display.setCursor(UI_PADDING_X, UI_PADDING_Y);
     display.print("FX: Starfield");
     display.display();
   } 
@@ -215,7 +229,7 @@ void renderScreensaver(JoyDirection input) {
       int y = 32 + sin(x * 0.1 + phase) * 15 + cos(x * 0.05 - phase) * 5;
       display.drawPixel(x, y, SH110X_WHITE);
     }
-    display.setCursor(2, 2);
+    display.setCursor(UI_PADDING_X, UI_PADDING_Y);
     display.print("FX: Sinewave");
     display.display();
   } 
@@ -228,7 +242,7 @@ void renderScreensaver(JoyDirection input) {
     for (int i = offset; i < SCREEN_HEIGHT; i += 16) {
       display.drawLine(0, i, SCREEN_WIDTH, i, SH110X_WHITE);
     }
-    display.setCursor(2, 2);
+    display.setCursor(UI_PADDING_X, UI_PADDING_Y);
     display.print("FX: Cyber Grid");
     display.display();
   }
@@ -241,6 +255,9 @@ void renderScreensaver(JoyDirection input) {
 }
 
 void loop() {
+  // Feed/Reset the hardware Task Watchdog Timer
+  esp_task_wdt_reset();
+
   JoyDirection input = readJoystick();
   static JoyDirection bufferedJoyInput = JOY_NONE;
   if (input != JOY_NONE) {
@@ -270,7 +287,6 @@ void loop() {
   if (isIdleScreensaver) {
     updateRGBPattern();
     
-    // Cycle between Matrix, Bike, and Girl every 8 seconds
     if (millis() - lastIdleAnimSwitch > 8000) {
       lastIdleAnimSwitch = millis();
       idleAnimCycle = (idleAnimCycle + 1) % 3;
@@ -291,7 +307,7 @@ void loop() {
       }
     }
 
-    // Go to light sleep after 5 minutes of screensaver to save battery
+    // Light sleep after 5 minutes of screensaver
     if (millis() - lastActivityTime > 300000) {
       display.clearDisplay();
       display.display();
@@ -303,10 +319,10 @@ void loop() {
       lastActivityTime = millis();
       isIdleScreensaver = false;
     }
-    return; // Skip normal menu/app execution
+    return;
   }
 
-  // Standard deep sleep backup (if screensaver is disabled or config differs)
+  // Standard deep sleep backup (if screensaver config differs)
   if (millis() - lastActivityTime > 300000) {
     display.clearDisplay();
     display.display();
@@ -322,7 +338,6 @@ void loop() {
 
   // Navigation Logic
   if (!appActive) {
-    // We are on a Cover screen. Left/Right swaps between apps. Click launches the active app.
     if (input == JOY_RIGHT) {
       int nextState = (int)currentState + 1;
       if (nextState >= STATE_COUNT) nextState = STATE_WIFI_SCAN;
@@ -336,15 +351,12 @@ void loop() {
     else if (input == JOY_CLICK) {
       appActive = true;
       subAppSelectIdx = 0;
-      // Initialize app states when entering
       if (currentState == STATE_WIFI_SCAN) triggerWifiScan();
       if (currentState == STATE_BLE_SCAN) triggerBleScan();
       if (currentState == STATE_GAME) initSnakeGame();
       if (currentState == STATE_DASHBOARD) initDashboard();
     }
   } else {
-    // We are inside an active App.
-    // If user pushes LEFT (or game over is clicked left), exit back to Cover screen
     if (currentState == STATE_GAME) {
       if (gameOver && input == JOY_LEFT) {
         appActive = false;
@@ -358,12 +370,7 @@ void loop() {
 
   // State Renderer
   if (!appActive) {
-    // Render Lobby cover pages
     switch (currentState) {
-      case STATE_BOOT:
-        playBootSequence(display);
-        currentState = STATE_WIFI_SCAN;
-        break;
       case STATE_WIFI_SCAN:
         drawAppLobby("1. WIFI SCANNER", STATE_WIFI_SCAN);
         break;
@@ -392,7 +399,6 @@ void loop() {
         break;
     }
   } else {
-    // Render Active Apps
     switch (currentState) {
       case STATE_WIFI_SCAN:
         if (input == JOY_UP) {
@@ -433,7 +439,7 @@ void loop() {
         if (millis() - lastGameTick > 130) {
           lastGameTick = millis();
           updateSnake(bufferedJoyInput);
-          bufferedJoyInput = JOY_NONE; // Reset input buffer after applying
+          bufferedJoyInput = JOY_NONE;
         }
         drawSnakeGame(display);
         break;
@@ -515,7 +521,6 @@ void loop() {
         }
         display.setCursor(108, 38);
         display.print(cursorBlink ? "_" : " ");
-        
         display.display();
         break;
 
